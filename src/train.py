@@ -1,9 +1,8 @@
 import torch
 from transformers import BartTokenizer, BartTokenizerFast
 from transformers import BartForConditionalGeneration, BartConfig
-from transformers import Trainer
+from transformers import Trainer, Seq2SeqTrainer
 from torch.utils.data import DataLoader
-from torch.cuda.amp import GradScaler, autocast
 import glob
 import os
 from model import DNABARTForClassification
@@ -16,44 +15,6 @@ import pandas as pd
 
 from dataset import IterableDNABARTDataset, DNABARTClassificationDataset
 import dnabart_config
-
-
-def save_checkpoint(model, optimizer, scheduler, epoch, batch_num, checkpoint_dir):
-    """
-    Save model checkpoint with optimizer and scheduler states
-    """
-    os.makedirs(checkpoint_dir, exist_ok=True)
-    checkpoint_path = os.path.join(checkpoint_dir, f'checkpoint_epoch_e{epoch}_{batch_num}.pt')
-    
-    torch.save({
-        'epoch': epoch,
-        'batch': batch_num,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'scheduler_state_dict': scheduler.state_dict(),
-    }, checkpoint_path)
-    
-    # print(f"Checkpoint saved: {checkpoint_path}")
-
-
-def load_checkpoint(checkpoint_path, model, optimizer=None, scheduler=None, device=None):
-    """
-    Load model checkpoint with optional optimizer and scheduler states
-    """
-    if device is None:
-        device = next(model.parameters()).device
-        
-    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    
-    model.load_state_dict(checkpoint['model_state_dict'])
-    
-    if optimizer is not None:
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    
-    if scheduler is not None:
-        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-    
-    return (checkpoint['epoch'], checkpoint['batch'])
 
 
 
@@ -69,7 +30,7 @@ def pre_train_model():
     print("2. Done")
     
     
-    print("3. Initializing Dataset")
+    print("3. Initializing Datasets")
     # train_data = IterableDNABARTDataset(
     #     ground_truth_file='../data/train_part1.txt',
     #     corrupted_file='../data/corrupted_train_part1.txt',
@@ -80,6 +41,11 @@ def pre_train_model():
         corrupted_file='../data/corrupted_test.txt',
         tokenizer=tokenizer
         )
+    eval_data = IterableDNABARTDataset(
+        ground_truth_file='../data/dev.txt',
+        corrupted_file='../data/corrupted_dev.txt',
+        tokenizer=tokenizer
+    )
     print("3. Done")
     
     
@@ -95,10 +61,11 @@ def pre_train_model():
     
     
     print("6. Initializing Trainer")
-    trainer = Trainer(
+    trainer = Seq2SeqTrainer(
         model=model,
         args=training_args,
         train_dataset=train_data,
+        eval_dataset=eval_data
     )
     print("6. Done")
     
