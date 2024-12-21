@@ -92,7 +92,7 @@ class CachedDNABARTDataset(Dataset):
 
 
 class IterableDNABARTDataset(IterableDataset):
-    def __init__(self, ground_truth_file, corrupted_file, tokenizer, max_length=512):
+    def __init__(self, ground_truth_file, corrupted_file, tokenizer, max_length=256):
         """
         Iterable dataset for DNA sequences with ground truth and corrupted data.
 
@@ -114,33 +114,29 @@ class IterableDNABARTDataset(IterableDataset):
         Yields:
             dict: A dictionary with tokenized inputs, labels, and attention masks.
         """
-        with open(self.ground_truth_file, "r") as gt_file, open(self.corrupted_file, "r") as corrupted_file:
-            for ground_truth_line, corrupted_line in zip(gt_file, corrupted_file):
-                # Strip newline characters
-                ground_truth_seq = ground_truth_line.strip()
-                corrupted_seq = corrupted_line.strip()
-
+        with open(self.ground_truth_file, "r") as f_gt, open(self.corrupted_file, "r") as f_cor:
+            for gt_line, cor_line in zip(f_gt, f_cor):
                 # Tokenize the sequences
                 input_tokens = self.tokenizer(
-                    corrupted_seq,
-                    max_length=self.max_length,
+                    cor_line.strip(),
                     padding='max_length',
                     truncation=True,
+                    max_length=self.max_length,
                     return_tensors='pt'
                 )
                 label_tokens = self.tokenizer(
-                    ground_truth_seq,
-                    max_length=self.max_length,
+                    gt_line.strip(),
                     padding='max_length',
                     truncation=True,
+                    max_length=self.max_length,
                     return_tensors='pt'
                 )
 
                 # Yield a single sample
                 yield {
-                    'input_ids': input_tokens['input_ids'].squeeze(0),
-                    'labels': label_tokens['input_ids'].squeeze(0),
-                    'attention_mask': input_tokens['attention_mask'].squeeze(0)
+                    'input_ids': input_tokens['input_ids'].squeeze(),
+                    'attention_mask': input_tokens['attention_mask'].squeeze(),
+                    'labels': label_tokens['input_ids'].squeeze()
                 }
     def __len__(self):
         """

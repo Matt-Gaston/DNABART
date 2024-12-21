@@ -1,5 +1,15 @@
 import torch
 from transformers import BartConfig
+from transformers import Seq2SeqTrainingArguments
+
+import os
+
+
+#directory configs
+checkpoint_dir = '../models/model_checkpoints'
+models_dir = '../models'
+
+
 
 def get_dnabart_config():
     """
@@ -30,6 +40,85 @@ def get_dnabart_config():
     )
     return config
 
+
+def get_dnabart_pretraining_config():
+    training_args = Seq2SeqTrainingArguments(
+        # Basic Training Parameters
+        output_dir=checkpoint_dir,
+        num_train_epochs=2,
+        per_device_train_batch_size=10,
+        per_device_eval_batch_size=512,
+        learning_rate=5e-5,
+        weight_decay=0.1,
+        
+        # Training and Evaluation Flags
+        do_train=True,
+        do_eval=True,
+        
+        # Evaluation Strategy
+        eval_strategy="steps",
+        eval_steps=500,  # Run evaluation every 1000 steps
+        eval_delay=0,  # Start evaluation right from the beginning
+        
+        # Seq2Seq Specific Parameters
+        predict_with_generate=True,  # Use generate() for evaluation
+        # generation_max_length=128,   # Max length for generated sequences
+        generation_num_beams=4,      # Number of beams for beam search
+        
+        # Optimization Parameters
+        warmup_ratio=0.1,
+        gradient_accumulation_steps=1,
+        max_grad_norm=1.0,
+        lr_scheduler_type="linear",
+        
+        # Mixed Precision Training
+        fp16=torch.cuda.is_available(),
+        fp16_opt_level="O1",
+        half_precision_backend="auto",
+        
+        # Checkpointing
+        save_strategy="steps",
+        save_steps=1000,  # Save at the same frequency as evaluation
+        save_total_limit=3,  # Keep only the last 3 checkpoints
+        resume_from_checkpoint=True,
+        
+        # Model Selection Based on Evaluation
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,  # Lower loss is better
+        
+        # Logging for Tensorboard/Weights & Biases
+        logging_dir=os.path.join(checkpoint_dir, 'logs'),
+        logging_strategy="steps",
+        logging_steps=100,
+        logging_first_step=True,
+        report_to=["tensorboard"],  # Can add "wandb" if using Weights & Biases
+        
+        # Memory Optimization
+        # gradient_checkpointing=False,
+        optim="adamw_torch",
+        
+        # Performance
+        # group_by_length=True,
+        # length_column_name="length",
+        dataloader_num_workers=4,
+        dataloader_pin_memory=True,
+        
+        # Distributed Training
+        # local_rank=-1,
+        # ddp_find_unused_parameters=False,
+        
+        # Additional Parameters
+        remove_unused_columns=True,
+        label_names=["labels"],  # Important for seq2seq tasks
+        
+        # Sorting & Sampling
+        sortish_sampler=True,  # Helps with training efficiency for seq2seq
+        
+        # Debugging
+        debug="",  # Set to "underflow_overflow" for debugging
+    )
+    return training_args
 
 def get_device():
     """

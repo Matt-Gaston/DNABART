@@ -1,8 +1,8 @@
 import torch
 from transformers import BartTokenizer, BartTokenizerFast
-from torch.utils.data import DataLoader
 from transformers import BartForConditionalGeneration, BartConfig
-from transformers import get_linear_schedule_with_warmup
+from transformers import Trainer
+from torch.utils.data import DataLoader
 from torch.cuda.amp import GradScaler, autocast
 import glob
 import os
@@ -14,7 +14,7 @@ from pathlib import Path
 from tqdm import tqdm
 import pandas as pd
 
-from dataset import DNABARTDataset, CachedDNABARTDataset, IterableDNABARTDataset, DNABARTClassificationDataset
+from dataset import IterableDNABARTDataset, DNABARTClassificationDataset
 import dnabart_config
 
 
@@ -58,128 +58,62 @@ def load_checkpoint(checkpoint_path, model, optimizer=None, scheduler=None, devi
 
 
 def pre_train_model():
-    resume_training = True
-    start_epoch, start_batch = 0, 0
-    
     print("1. Initializing defaults")
-    batch_size = 128
-    lr=5e-5
-    weight_decay = 0.1
-    num_epochs = 2
-    
-    DEVICE = dnabart_config.get_device()
-    
-    checkpointdir = '../models/model_checkps'
+    checkpointdir = '../models/model_checkpoints'
+    os.makedirs(checkpointdir, exist_ok=True)
     print("1. Done")
+    
     
     print("2. Initializing tokenizer")
     tokenizer = BartTokenizerFast.from_pretrained('../models/DNABART_BLBPE_4096')
     print("2. Done")
     
-    print("3. Initializing Dataset and DataLoader")
-    # train_data = DNABARTDataset(ground_truth_file='../data/train_part1.txt', corrupted_file='../data/corrupted_train_part1.txt', tokenizer=tokenizer)
-    # dataloader = DataLoader(train_data, batch_size=4, shuffle=True)
-    train_data = IterableDNABARTDataset(ground_truth_file='../data/train_part1.txt', corrupted_file='../data/corrupted_train_part1.txt', tokenizer=tokenizer)
-    dataloader = DataLoader(train_data, batch_size=batch_size)
+    
+    print("3. Initializing Dataset")
+    # train_data = IterableDNABARTDataset(
+    #     ground_truth_file='../data/train_part1.txt',
+    #     corrupted_file='../data/corrupted_train_part1.txt',
+    #     tokenizer=tokenizer
+    #     )
+    train_data = IterableDNABARTDataset(
+        ground_truth_file='../data/test.txt',
+        corrupted_file='../data/corrupted_test.txt',
+        tokenizer=tokenizer
+        )
     print("3. Done")
+    
     
     print("4. Initializing Model")
     dnabartcfg = dnabart_config.get_dnabart_config()
     model = BartForConditionalGeneration(dnabartcfg)
-    print("Sending model to device")
-    model.to(DEVICE)
     print("4. Done")
     
-    print("5. Constructing training optimizers")
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=lr,
-        weight_decay=weight_decay
-    )
     
-    
-    total_steps = len(dataloader) * num_epochs
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer=optimizer,
-        num_warmup_steps=int(0.1*total_steps),
-        num_training_steps=total_steps
-    )
-    
-    
-    if resume_training:
-        checkpoint_files = sorted(
-            glob.glob(os.path.join(checkpointdir, 'checkpoint_epoch_*.pt')),
-            key=os.path.getmtime
-        )
-        if checkpoint_files:
-            latest_checkpoint = os.path.join(checkpointdir, 'checkpoint_epoch_e0_bn40000.pt') #checkpoint_files[-1]
-            print(f'Resuming from checkpoint: {latest_checkpoint}')
-            checkpoint = load_checkpoint(latest_checkpoint, model, optimizer, scheduler, device=DEVICE)
-            start_epoch, start_batch = checkpoint
-        else:
-            print("No checkpoint found, starting from scratch")
-            model.to(DEVICE)
-    
+    print("5. Setting up training arguments")
+    training_args = dnabart_config.get_dnabart_pretraining_config()
     print("5. Done")
     
     
-    # scaler = torch.amp.GradScaler()
+    print("6. Initializing Trainer")
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_data,
+    )
+    print("6. Done")
+    
     
     print('7. Beginning Training')
-    model.train()
-    for epoch in tqdm(range(num_epochs), desc="Epochs", position=0):
-        batch_bar = tqdm(enumerate(dataloader), desc='Batch Num', leave=False, position=1, total=len(dataloader))
-        for batch_idx, batch in batch_bar:
-            if epoch == start_epoch and batch_idx <= start_batch:
-                continue
-            optimizer.zero_grad()
-            
-            input_ids = batch['input_ids'].to(DEVICE)
-            labels = batch['labels'].to(DEVICE)
-            attention_mask = batch['attention_mask'].to(DEVICE)
-            
-            #mixed precision training, not working
-            # with torch.amp.autocast('cuda'):
-            #     outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-            #     loss = outputs.loss
-            
-            # scaler.scale(loss.backward())
-            # scaler.unscale_(optimizer)
-            # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            
-            # scaler.step(optimizer)
-            # scaler.update()
-            # scheduler.step()
-            
-            #NORMAL Stuff, without mixed precision forward pass training
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-            
-            loss = outputs.loss
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            
-            optimizer.step()
-            scheduler.step()
-            batch_bar.set_description(f'Batch Num (Loss: {loss.item():.4f})')
-            if batch_idx % 8000 == 0:
-                save_checkpoint(model, optimizer, scheduler, epoch, batch_idx, checkpointdir)
-        
-    model.save_pretrained('../models/model_checkps/finalmodel')
+    trainer.train()
     print('7. Done')
     
-
-# tokenizer = BartTokenizer.from_pretrained('../models/DNABART_BLBPE_4096')
-
-
-# def evaluate_model(model_path, tokenizer_path, test_dataset_in_path, test_dataset_labels_path):  
-#     print("1. Initializing defaults")
-#     batch_size = 32
     
-#     DEVICE = dnabart_config.get_device()
+    print("8. Saving final model")
+    trainer.save_model(os.path.join(checkpointdir, 'finalmodel'))
+    print("8. Done")
     
-#     tokenizer = BartTokenizerFast.from_pretrained(tokenizer_path)
     
-#     model = BartForConditionalGeneration
+    print("Training completed!")
     
 
 
@@ -311,19 +245,19 @@ if __name__=='__main__':
     
     # datapaths = Path(args.dataset).resolve()
     
-    # pre_train_model()
+    pre_train_model()
     
-    PRETRAINED_MODEL_PATH = '../models/model_checkps/finalmodel'
-    TOKENIZER_PATH = '../models/DNABART_BLBPE_4096'
-    TRAIN_DATA_PATH = '../data/GUE/virus/covid/train.csv'
-    VAL_DATA_PATH = '../data/GUE/virus/covid/test.csv'
-    NUM_CLASSES = 3  # Adjust based on your classification task
-    SAVE_PATH = '../models/fine_tuned/GUE'
-    os.makedirs(SAVE_PATH, exist_ok=True)
-    model = train_classification_model(
-        pretrained_model_path=PRETRAINED_MODEL_PATH,
-        train_data_path=TRAIN_DATA_PATH,
-        val_data_path=VAL_DATA_PATH,
-        tokenizer_path=TOKENIZER_PATH,
-        save_path=SAVE_PATH
-    )
+    # PRETRAINED_MODEL_PATH = '../models/model_checkps/finalmodel'
+    # TOKENIZER_PATH = '../models/DNABART_BLBPE_4096'
+    # TRAIN_DATA_PATH = '../data/GUE/virus/covid/train.csv'
+    # VAL_DATA_PATH = '../data/GUE/virus/covid/test.csv'
+    # NUM_CLASSES = 3  # Adjust based on your classification task
+    # SAVE_PATH = '../models/fine_tuned/GUE'
+    # os.makedirs(SAVE_PATH, exist_ok=True)
+    # model = train_classification_model(
+    #     pretrained_model_path=PRETRAINED_MODEL_PATH,
+    #     train_data_path=TRAIN_DATA_PATH,
+    #     val_data_path=VAL_DATA_PATH,
+    #     tokenizer_path=TOKENIZER_PATH,
+    #     save_path=SAVE_PATH
+    # )
