@@ -1,7 +1,14 @@
 import torch
-from transformers import BartTokenizer, BartTokenizerFast
-from transformers import BartForConditionalGeneration, BartConfig
-from transformers import Trainer, Seq2SeqTrainer
+from transformers import (
+    BartTokenizer,
+    BartTokenizerFast,
+    BartForConditionalGeneration,
+    BartForSequenceClassification,
+    Trainer,
+    Seq2SeqTrainer,
+    EarlyStoppingCallback,
+)
+
 from torch.utils.data import DataLoader
 import glob
 import os
@@ -15,6 +22,7 @@ import pandas as pd
 
 from dataset import IterableDNABARTDataset, DNABARTClassificationDataset
 import dnabart_config
+import utils
 
 
 
@@ -65,7 +73,9 @@ def pre_train_model():
         model=model,
         args=training_args,
         train_dataset=train_data,
-        eval_dataset=eval_data
+        eval_dataset=eval_data,
+        tokenizer=tokenizer,
+        compute_metrics=utils.compute_metrics if eval_data else None,
     )
     print("6. Done")
     
@@ -94,109 +104,57 @@ def train_classification_model(
     learning_rate=2e-5,
     num_epochs=8
 ):
-    # Set up device
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # Load tokenizer
+    print("Initializing tokenizer")
     tokenizer = BartTokenizerFast.from_pretrained(tokenizer_path)
+    print("Done")
     
+    print("Initializing Datasets")
     # Prepare datasets
     train_dataset = DNABARTClassificationDataset(train_data_path, tokenizer)
     val_dataset = DNABARTClassificationDataset(val_data_path, tokenizer)
     
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-    
     num_classes = len(pd.read_csv(train_data_path)['label'].unique())
+    print("Done")
     
-    # Initialize model
-    model = DNABARTForClassification(pretrained_model_path, num_classes)
-    model.to(device)
     
-    # Prepare optimizer and scheduler
-    optimizer = torch.optim.AdamW(
-        model.parameters(), 
-        lr=learning_rate,
-        weight_decay=0.01
+    print("Loading foundational model weights")
+    model = BartForSequenceClassification.from_pretrained(
+        pretrained_model_name_or_path=pretrained_model_path,
+        num_labels=num_classes,
+        )
+    print("Done")
+    
+    
+    temp_paths = Path(train_data_path).resolve().parent.parts
+    final_save_path = os.path.join(save_path, temp_paths[-2], temp_paths[-1])
+    os.makedirs(final_save_path, exist_ok=True)
+    
+    print("Setting up trainer")
+    training_args = dnabart_config.get_dnabart_classification_ft_config()
+    
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=val_dataset,
+        tokenizer=tokenizer,
+        compute_metrics=utils.compute_metrics_accuracy,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]
     )
+    print("Done")
     
-    total_steps = len(train_dataloader) * num_epochs
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer, 
-        num_warmup_steps=int(0.1 * total_steps),
-        num_training_steps=total_steps
-    )
     
-    # Training loop
-    best_val_loss = float('inf')
-    for epoch in tqdm(range(num_epochs), desc=f"Epochs", position=0):
-        # Training phase
-        model.train()
-        train_loss = 0
-        train_correct = 0
-        train_total = 0
-        batch_bar = tqdm(enumerate(train_dataloader) , desc=f"Batch Num", leave=False, position=1, total=len(train_dataloader))
-        for batch_idx, batch in batch_bar:
-            optimizer.zero_grad()
-            
-            input_ids = batch['input_ids'].to(device)
-            attention_mask = batch['attention_mask'].to(device)
-            labels = batch['labels'].to(device)
-            
-            loss, logits = model(input_ids, attention_mask, labels)
-            
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            
-            optimizer.step()
-            scheduler.step()
-            
-            train_loss += loss.item()
-            
-            # Compute accuracy
-            _, predicted = torch.max(logits, 1)
-            train_total += labels.size(0)
-            train_correct += (predicted == labels).sum().item()
-            batch_bar.set_description(f'Batch Num (Loss: {loss.item():.4f})')
-        
-        # Validation phase
-        model.eval()
-        val_loss = 0
-        val_correct = 0
-        val_total = 0
-        
-        with torch.no_grad():
-            for batch in tqdm(val_dataloader, desc=f"Epoch {epoch+1} Validation"):
-                input_ids = batch['input_ids'].to(device)
-                attention_mask = batch['attention_mask'].to(device)
-                labels = batch['labels'].to(device)
-                
-                loss, logits = model(input_ids, attention_mask, labels)
-                
-                val_loss += loss.item()
-                
-                _, predicted = torch.max(logits, 1)
-                val_total += labels.size(0)
-                val_correct += (predicted == labels).sum().item()
-        
-        val_acc = 100 * val_correct / val_total
-        
-        # Print epoch results
-        print(f"Epoch {epoch+1}")
-        print(f"Training Loss: {train_loss/len(train_dataloader):.4f}")
-        print(f"Training Accuracy: {100 * train_correct / train_total:.2f}%")
-        print(f"Validation Loss: {val_loss/len(val_dataloader):.4f}")
-        print(f"Validation Accuracy: {100 * val_correct / val_total:.2f}%")
-        
-        # Save best model
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            best_val_acc = val_acc
-            temp_paths = Path(train_data_path).resolve().parent.parts
-            final_path = os.path.join(save_path,temp_paths[-2], temp_paths[-1])
-            os.makedirs(final_path, exist_ok=True)
-            torch.save(model.state_dict(), os.path.join(final_path, 'best_class_model.pt'))
-    print(f"Best Accuracy: {best_val_acc}")
+    print("starting training")
+    trainer.train()
+    print("Done")
+    
+    
+    trainer.save_model(os.path.join(final_save_path, 'best_model'))
+    
+    best_metric = trainer.state.best_metric
+    print(f"Best Accuracy: {best_metric}")
+    
     return model
 
 

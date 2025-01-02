@@ -1,6 +1,6 @@
 import torch
 from transformers import BartConfig
-from transformers import Seq2SeqTrainingArguments
+from transformers import Seq2SeqTrainingArguments, TrainingArguments
 
 import os
 
@@ -117,7 +117,55 @@ def get_dnabart_pretraining_config():
         
         # Debugging
         debug="",  # Set to "underflow_overflow" for debugging
+        
+        # Push to Hub settings (optional)
+        push_to_hub=False,
     )
+    return training_args
+
+
+def get_dnabart_classification_ft_config():
+    
+    training_args = TrainingArguments(
+        #Basic training parameters
+        output_dir=None,
+        num_train_epochs=8,
+        per_device_train_batch_size=10,
+        per_device_eval_batch_size=128,
+        learning_rate=2e-5,
+        weight_decay=0.01,
+        
+        # Evaluation settings
+        evaluation_strategy="steps",
+        eval_steps=100,
+        save_strategy="steps",
+        save_steps=100,
+        
+        # Save best model
+        load_best_model_at_end=True,
+        metric_for_best_model="accuracy",
+        greater_is_better=True,
+        save_total_limit=3,
+        
+        # Logging
+        logging_dir=os.path.join(models_dir, 'logs'),
+        logging_steps=50,
+        report_to=["tensorboard"],
+        
+        # Optimizer settings
+        warmup_ratio=0.1,
+        gradient_accumulation_steps=1,
+        # gradient_checkpointing=False,
+        fp16=torch.cuda.is_available(),
+        
+        # Other settings
+        dataloader_num_workers=4,
+        dataloader_pin_memory=True,
+        
+        # Push to Hub settings (optional)
+        push_to_hub=False,
+    )
+    
     return training_args
 
 def get_device():
