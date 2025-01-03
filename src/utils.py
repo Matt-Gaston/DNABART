@@ -1,4 +1,3 @@
-from datasets import load_metric
 from transformers import BartTokenizer, BartTokenizerFast
 import evaluate
 
@@ -23,7 +22,7 @@ def compute_metrics_rogue(eval_pred):
     decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
     
     # Compute ROUGE metrics
-    rouge_metric = load_metric("rouge")
+    rouge_metric = evaluate.load("rouge")
     result = rouge_metric.compute(
         predictions=decoded_preds,
         references=decoded_labels,
