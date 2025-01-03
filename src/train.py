@@ -75,7 +75,7 @@ def pre_train_model():
         train_dataset=train_data,
         eval_dataset=eval_data,
         tokenizer=tokenizer,
-        compute_metrics=utils.compute_metrics if eval_data else None,
+        compute_metrics=utils.compute_metrics_rogue if eval_data else None,
     )
     print("6. Done")
     

@@ -64,7 +64,7 @@ if __name__=='__main__':
     parser.add_argument('--datasets', type=str, required=True, nargs='+')
     # parser.add_argument('--out_dir', type=str)
     parser.add_argument('--cor_type', type=str, default='sub', choices='sub')
-    parser.add_argument('--cor_rate', type=float, default=0.3)
+    parser.add_argument('--cor_rate', type=float, default=0.1)
     
     args = parser.parse_args()
     
