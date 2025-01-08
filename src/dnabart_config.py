@@ -46,7 +46,7 @@ def get_dnabart_pretraining_config():
         # Basic Training Parameters
         output_dir=checkpoint_dir,
         num_train_epochs=2,
-        per_device_train_batch_size=10,
+        per_device_train_batch_size=100,
         per_device_eval_batch_size=512,
         learning_rate=5e-5,
         weight_decay=0.1,
