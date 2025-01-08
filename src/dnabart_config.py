@@ -101,7 +101,7 @@ def get_dnabart_pretraining_config():
         # Performance
         # group_by_length=True,
         # length_column_name="length",
-        dataloader_num_workers=4,
+        dataloader_num_workers=2,
         dataloader_pin_memory=True,
         
         # Distributed Training
@@ -159,7 +159,7 @@ def get_dnabart_classification_ft_config():
         fp16=torch.cuda.is_available(),
         
         # Other settings
-        dataloader_num_workers=4,
+        dataloader_num_workers=2,
         dataloader_pin_memory=True,
         
         # Push to Hub settings (optional)
