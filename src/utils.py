@@ -30,10 +30,10 @@ def compute_metrics_rogue(eval_pred):
     )
     
     # Extract median scores
-    result = {key: value.mid.fmeasure * 100 for key, value in result.items()}
+    result = {k: round(v * 100, 4) for k, v in result.items()}
     
     # Add mean generated length
     prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in predictions]
     result["gen_len"] = np.mean(prediction_lens)
     
-    return {k: round(v, 4) for k, v in result.items()}
+    return result
