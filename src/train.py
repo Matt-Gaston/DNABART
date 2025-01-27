@@ -9,10 +9,7 @@ from transformers import (
     EarlyStoppingCallback,
 )
 
-from torch.utils.data import DataLoader
-import glob
 import os
-from model import DNABARTForClassification
 
 
 import os
@@ -100,9 +97,6 @@ def train_classification_model(
     val_data_path,
     tokenizer_path,
     save_path,
-    batch_size=10,
-    learning_rate=2e-5,
-    num_epochs=8
 ):
     
     print("Initializing tokenizer")

@@ -17,8 +17,7 @@ echo "Started at $(date)"
 
 
 module load Anaconda3
-ml GCC/12.3.0 OpenMPI/4.1.5
-ml PyTorch/2.1.2-CUDA-12.1.1
+ml GCC/12.3.0 OpenMPI/4.1.5 PyTorch/2.1.2-CUDA-12.1.1
 source activate dnabart_env
 
 # Change to the project directory

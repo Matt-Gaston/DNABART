@@ -1,7 +1,6 @@
 import random
 from pathlib import Path
 from tqdm import tqdm
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 # Function to perform random substitutions
 def random_substitution(sequence, corruption_rate=0.30):
@@ -39,14 +38,6 @@ def augment_dataset(datapath:str):
     corrupted_sequences = []
     for seq in tqdm(sequences, desc="Corrupting sequences", unit=" seqs"):
         corrupted_sequences.append(random_substitution(seq.strip()))
-    # corrupted_sequences = [None] * len(sequences)
-    # with ProcessPoolExecutor() as executor:
-    #     futures = {executor.submit(random_substitution, seq.strip()): idx for idx, seq in enumerate(sequences)}
-    #     with tqdm(total=len(futures), desc="Corrupting sequences", unit=" seqs") as pbar:
-    #         for future in as_completed(futures):
-    #             idx = futures[future]
-    #             corrupted_sequences[idx] = future.result()
-    #             pbar.update(1)  # Manually update the progress bar
     print("Done augmenting")
 
     outfile = datapath.parent / Path('corrupted_' + datapath.name)
