@@ -124,7 +124,7 @@ class DatasetAugmenter:
             input_path (Path): Path to the input file
         """
         # Create output path
-        output_path = input_path.parent / f'corrupted_{input_path.name}'
+        output_path = input_path.parent / f'corrupted_{self.corruption_type}_{self.corruption_rate}_{input_path.name}'
         
         # Read sequences
         with open(input_path, "r") as f:
