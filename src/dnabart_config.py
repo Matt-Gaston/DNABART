@@ -46,10 +46,10 @@ def get_dnabart_pretraining_config():
         # Basic Training Parameters
         output_dir=checkpoint_dir,
         num_train_epochs=2,
-        per_device_train_batch_size=100,
+        per_device_train_batch_size=256,
         per_device_eval_batch_size=512,
-        learning_rate=5e-5,
-        weight_decay=0.1,
+        learning_rate=4e-4,
+        weight_decay=1e-2,
         
         # Training and Evaluation Flags
         do_train=True,
@@ -57,7 +57,7 @@ def get_dnabart_pretraining_config():
         
         # Evaluation Strategy
         eval_strategy="steps",
-        eval_steps=500,  # Run evaluation every 1000 steps
+        eval_steps=10000,  # Run evaluation every 1000 steps
         eval_delay=0,  # Start evaluation right from the beginning
         
         # Seq2Seq Specific Parameters
@@ -78,7 +78,7 @@ def get_dnabart_pretraining_config():
         
         # Checkpointing
         save_strategy="steps",
-        save_steps=1000,  # Save at the same frequency as evaluation
+        save_steps=10000,  # Save at the same frequency as evaluation
         save_total_limit=3,  # Keep only the last 3 checkpoints
         resume_from_checkpoint=True,
         
