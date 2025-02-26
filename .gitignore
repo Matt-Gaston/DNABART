@@ -1,2 +1,5 @@
 __pycache__/
 model_checkpoints/
+error_*
+output_*
+data/*
