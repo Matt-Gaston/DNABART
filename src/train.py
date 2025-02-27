@@ -23,7 +23,7 @@ import utils
 
 
 
-def pre_train_model():
+def pre_train_model(training_gt_file="../data/test.txt", training_cor_file="../data/corrupted_test.txt", eval_gt_file="../data/dev.txt", eval_cor_file="../data/dev.txt"):
     print("1. Initializing defaults")
     checkpointdir = '../models/model_checkpoints'
     os.makedirs(checkpointdir, exist_ok=True)
@@ -36,19 +36,14 @@ def pre_train_model():
     
     
     print("3. Initializing Datasets")
-    # train_data = IterableDNABARTDataset(
-    #     ground_truth_file='../data/train_part1.txt',
-    #     corrupted_file='../data/corrupted_train_part1.txt',
-    #     tokenizer=tokenizer
-    #     )
     train_data = IterableDNABARTDataset(
-        ground_truth_file='../data/test.txt',
-        corrupted_file='../data/corrupted_test.txt',
+        ground_truth_file=training_gt_file,
+        corrupted_file=training_cor_file,
         tokenizer=tokenizer
         )
     eval_data = IterableDNABARTDataset(
-        ground_truth_file='../data/dev.txt',
-        corrupted_file='../data/corrupted_dev.txt',
+        ground_truth_file=eval_gt_file,
+        corrupted_file=eval_cor_file,
         tokenizer=tokenizer
     )
     print("3. Done")
@@ -152,19 +147,40 @@ def train_classification_model(
     return model
 
 
-
-if __name__=='__main__':
+def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='Training script for DNABART')
+    parser.add_argument('--train_phase', type = str, nargs=1, choices=('pretrain', 'finetune'))
+    parser.add_argument('--train_gt_file', type = str)
+    parser.add_argument('--train_cor_file', type = str)
+    parser.add_argument('--eval_gt_file', type = str)
+    parser.add_argument('--eval_cor_file', type = str)
     parser.add_argument('--model_save_dir', type=str)
     parser.add_argument('--model_type', type=str, default='gen', choices=('gen', 'cls'))
+    
     
     args = parser.parse_args()
     
     # datapaths = Path(args.dataset).resolve()
+
+    if args.train_phase == 'pretrain': #pretrain training phase selected
+        #check if all needed files exist
+        if not Path(args.train_gt_file).exists():
+            print("Training ground truth file does not exist")
+        if not Path(args.train_cor_file).exists():
+            print("Training corrupted file does not exist")
+        if not Path(args.eval_gt_file).exists():
+            print("Evaluation ground truth file does not exist")
+        if not Path(args.eval_cor_file).exists():
+            print("Evaluation corrupted file does not exist")
+
+        #all files validated, begin pretraining
+        pre_train_model(training_gt_file=args.train_gt_file, training_cor_file=args.train_cor_file, eval_gt_file=args.eval_gt_file, eval_cor_file=args.eval_cor_file)
     
-    pre_train_model()
+    if args.train_phase == 'finetune':
+        pass
+        ##TODO add finetuning code
     
     # PRETRAINED_MODEL_PATH = '../models/model_checkps/finalmodel'
     # TOKENIZER_PATH = '../models/DNABART_BLBPE_4096'
@@ -180,3 +196,8 @@ if __name__=='__main__':
     #     tokenizer_path=TOKENIZER_PATH,
     #     save_path=SAVE_PATH
     # )
+    return
+
+
+if __name__=='__main__':
+    main()

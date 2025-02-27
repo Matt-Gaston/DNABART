@@ -27,6 +27,6 @@ cd /scratch/group/p.cis240696.000/DNABART/src
 # cd /share/vast/spxzb-lab/mattStuff/DNABART/src
 
 # Run your training script
-python train.py
+python train.py --train_phase pretrain --train_gt_file "../data/test.txt" --train_cor_file "../data/corrupted_test.txt" --eval_gt_file "../data/dev.txt" --eval_cor_file "../data/corrupted_dev.txt"
 
 # Optionally, add commands for cleanup or logging here
